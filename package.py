@@ -5,7 +5,7 @@ from __future__ import absolute_import
 import argparse
 import glob
 import os
-import cPickle as pickle
+import pickle
 import random
 
 
@@ -30,13 +30,15 @@ def pickle_examples(paths, train_path, val_path, train_val_split=0.1):
 
 
 parser = argparse.ArgumentParser(description='Compile list of images into a pickled object for training')
-parser.add_argument('--dir', dest='dir', required=True, help='path of examples')
-parser.add_argument('--save_dir', dest='save_dir', required=True, help='path to save pickled files')
+parser.add_argument('--dir', dest='dir', default='./character/', help='path of examples')
+parser.add_argument('--save_dir', dest='save_dir', default='./data', help='path to save pickled files')
 parser.add_argument('--split_ratio', type=float, default=0.1, dest='split_ratio',
                     help='split ratio between train and val')
 args = parser.parse_args()
 
 if __name__ == "__main__":
+    if not os.path.exists('./data/'):
+        os.mkdir('./data/')
     train_path = os.path.join(args.save_dir, "train.obj")
     val_path = os.path.join(args.save_dir, "val.obj")
     pickle_examples(sorted(glob.glob(os.path.join(args.dir, "*.jpg"))), train_path=train_path, val_path=val_path,

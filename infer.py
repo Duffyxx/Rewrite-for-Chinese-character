@@ -22,7 +22,7 @@ parser.add_argument('--embedding_ids', default='embedding_ids', type=str, help='
 parser.add_argument('--save_dir', default='save_dir', type=str, help='path to save inferred images')
 parser.add_argument('--inst_norm', dest='inst_norm', type=int, default=0,
                     help='use conditional instance normalization in your model')
-parser.add_argument('--interpolate', dest='interpolate', type=int, default=0,
+parser.add_argument('--interpolate', dest='interpolate', type=int, default=1,
                     help='interpolate between different embedding vectors')
 parser.add_argument('--steps', dest='steps', type=int, default=10, help='interpolation steps in between vectors')
 parser.add_argument('--output_gif', dest='output_gif', type=str, default=None, help='output name transition gif')
@@ -34,7 +34,8 @@ args = parser.parse_args()
 def main(_):
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
-
+    if not os.path.exists(rgs.save_dir):
+        os.mkdir(rgs.save_dir)
     with tf.Session(config=config) as sess:
         model = UNet(batch_size=args.batch_size)
         model.register_session(sess)

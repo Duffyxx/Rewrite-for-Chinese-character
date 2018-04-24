@@ -14,7 +14,7 @@ from .utils import scale_back, merge, save_concat_images
 
 # Auxiliary wrapper classes
 # Used to save handles(important nodes in computation graph) for later evaluation
-LossHandle = namedtuple("LossHandle", ["g_loss", "l1_loss", "tv_loss"])
+LossHandle = namedtuple("LossHandle", ["l1_loss"])
 InputHandle = namedtuple("InputHandle", ["real_data", "embedding_ids"])
 EvalHandle = namedtuple("EvalHandle", ["encoder", "generator", "target", "source", "embedding"])
 SummaryHandle = namedtuple("SummaryHandle", ["g_merged"])
@@ -139,12 +139,6 @@ class UNet(object):
                                     self.input_filters + self.output_filters],
                                    name='real_A_and_B_images')
         embedding_ids = tf.placeholder(tf.int64, shape=None, name="embedding_ids")
-        no_target_data = tf.placeholder(tf.float32,
-                                        [self.batch_size, self.input_width, self.input_width,
-                                         self.input_filters + self.output_filters],
-                                        name='no_target_A_and_B_images')
-        no_target_ids = tf.placeholder(tf.int64, shape=None, name="no_target_embedding_ids")
-
         # target images
         real_B = real_data[:, :, :, :self.input_filters]
         # source images
@@ -153,109 +147,13 @@ class UNet(object):
         embedding = init_embedding(self.embedding_num, self.embedding_dim)
         fake_B, encoded_real_A = self.generator(real_A, embedding, embedding_ids, is_training=is_training,
                                                 inst_norm=inst_norm)
-        real_AB = tf.concat([real_A, real_B], 3)
-        fake_AB = tf.concat([real_A, fake_B], 3)
-
-        # Note it is not possible to set reuse flag back to False
-        # initialize all variables before setting reuse to True
-        # real_D, real_D_logits, real_category_logits = self.discriminator(real_AB, is_training=is_training, reuse=False)
-        # fake_D, fake_D_logits, fake_category_logits = self.discriminator(fake_AB, is_training=is_training, reuse=True)
-
-        # encoding constant loss
-        # this loss assume that generated imaged and real image
-        # should reside in the same space and close to each other
-        # encoded_fake_B = self.encoder(fake_B, is_training, reuse=True)[0]
-        # const_loss = (tf.reduce_mean(tf.square(encoded_real_A - encoded_fake_B))) * self.Lconst_penalty
-
-        # category loss
-        # true_labels = tf.reshape(tf.one_hot(indices=embedding_ids, depth=self.embedding_num),
-        #                          shape=[self.batch_size, self.embedding_num])
-        # real_category_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=real_category_logits,
-        #                                                                             labels=true_labels))
-        # fake_category_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_category_logits,
-        #                                                                             labels=true_labels))
-        # category_loss = self.Lcategory_penalty * (real_category_loss + fake_category_loss)
-
-        # binary real/fake loss
-        # d_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=real_D_logits,
-        #                                                                      labels=tf.ones_like(real_D)))
-        # d_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_D_logits,
-                                                                             # labels=tf.zeros_like(fake_D)))
-        # L1 loss between real and generated images
         l1_loss =  tf.reduce_mean(tf.abs(fake_B - real_B))
-        # total variation loss
-        width = self.output_width
-        tv_loss = (tf.nn.l2_loss(fake_B[:, 1:, :, :] - fake_B[:, :width - 1, :, :]) / width
-                   + tf.nn.l2_loss(fake_B[:, :, 1:, :] - fake_B[:, :, :width - 1, :]) / width) * self.Ltv_penalty
-
-        # maximize the chance generator fool the discriminator
-        # cheat_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_D_logits,
-                                                                            # labels=tf.ones_like(fake_D)))
-#
-        # d_loss = d_loss_real + d_loss_fake + category_loss / 2.0
-        g_loss =  self.L1_penalty * l1_loss + tv_loss
-
-        # if no_target_source:
-        #     # no_target source are examples that don't have the corresponding target images
-        #     # however, except L1 loss, we can compute category loss, binary loss and constant losses with those examples
-        #     # it is useful when discriminator get saturated and d_loss drops to near zero
-        #     # those data could be used as additional source of losses to break the saturation
-        #     no_target_A = no_target_data[:, :, :, self.input_filters:self.input_filters + self.output_filters]
-        #     no_target_B, encoded_no_target_A = self.generator(no_target_A, embedding, no_target_ids,
-        #                                                       is_training=is_training,
-        #                                                       inst_norm=inst_norm, reuse=True)
-        #     no_target_labels = tf.reshape(tf.one_hot(indices=no_target_ids, depth=self.embedding_num),
-        #                                   shape=[self.batch_size, self.embedding_num])
-        #     no_target_AB = tf.concat([no_target_A, no_target_B], 3)
-        #     no_target_D, no_target_D_logits, no_target_category_logits = self.discriminator(no_target_AB,
-        #                                                                                     is_training=is_training,
-        #                                                                                     reuse=True)
-        #     encoded_no_target_B = self.encoder(no_target_B, is_training, reuse=True)[0]
-        #     no_target_const_loss = tf.reduce_mean(
-        #         tf.square(encoded_no_target_A - encoded_no_target_B)) * self.Lconst_penalty
-        #     no_target_category_loss = tf.reduce_mean(
-        #         tf.nn.sigmoid_cross_entropy_with_logits(logits=no_target_category_logits,
-        #                                                 labels=no_target_labels)) * self.Lcategory_penalty
-        #
-        #     d_loss_no_target = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=no_target_D_logits,
-        #                                                                               labels=tf.zeros_like(
-        #                                                                                   no_target_D)))
-        #     cheat_loss += tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=no_target_D_logits,
-        #                                                                          labels=tf.ones_like(no_target_D)))
-        #     d_loss = d_loss_real + d_loss_fake + d_loss_no_target + (category_loss + no_target_category_loss) / 3.0
-        #     g_loss = cheat_loss / 2.0 + l1_loss + \
-        #              (self.Lcategory_penalty * fake_category_loss + no_target_category_loss) / 2.0 + \
-        #              (const_loss + no_target_const_loss) / 2.0 + tv_loss
-
-        # d_loss_real_summary = tf.summary.scalar("d_loss_real", d_loss_real)
-        # d_loss_fake_summary = tf.summary.scalar("d_loss_fake", d_loss_fake)
-        # category_loss_summary = tf.summary.scalar("category_loss", category_loss)
-        # cheat_loss_summary = tf.summary.scalar("cheat_loss", cheat_loss)
         l1_loss_summary = tf.summary.scalar("l1_loss", l1_loss)
-        # fake_category_loss_summary = tf.summary.scalar("fake_category_loss", fake_category_loss)
-        # const_loss_summary = tf.summary.scalar("const_loss", const_loss)
-        # d_loss_summary = tf.summary.scalar("d_loss", d_loss)
-        # g_loss_summary = tf.summary.scalar("g_loss", g_loss)
-        # tv_loss_summary = tf.summary.scalar("tv_loss", tv_loss)
-
-        # d_merged_summary = tf.summary.merge([d_loss_real_summary, d_loss_fake_summary,
-        #                                      category_loss_summary, d_loss_summary])
-        # g_merged_summary = tf.summary.merge([cheat_loss_summary, l1_loss_summary,
-        #                                      fake_category_loss_summary,
-        #                                      const_loss_summary,
-        #                                      g_loss_summary, tv_loss_summary])
-
         # expose useful nodes in the graph as handles globally
         input_handle = InputHandle(real_data=real_data,
-                                   embedding_ids=embedding_ids,
-                                   no_target_data=no_target_data,
-                                   no_target_ids=no_target_ids)
+                                   embedding_ids=embedding_ids)
 
-        loss_handle = LossHandle(g_loss=g_loss,
-                                 l1_loss=l1_loss,
-                                 # category_loss=category_loss,
-                                 # cheat_loss=cheat_loss,
-                                 tv_loss=tv_loss)
+        loss_handle = LossHandle(l1_loss=l1_loss)
 
         eval_handle = EvalHandle(encoder=encoded_real_A,
                                  generator=fake_B,
@@ -277,16 +175,6 @@ class UNet(object):
 
     def retrieve_trainable_vars(self, freeze_encoder=False):
         t_vars = tf.trainable_variables()
-
-        # d_vars = [var for var in t_vars if 'd_' in var.name]
-        # g_vars = [var for var in t_vars if 'g_' in var.name]
-
-        # if freeze_encoder:
-        #     # exclude encoder weights
-        #     print("freeze encoder weights")
-        #     g_vars = [var for var in g_vars if not ("g_e" in var.name)]
-        #
-        # return g_vars, d_vars
         return t_vars
 
     def retrieve_generator_vars(self):
@@ -329,22 +217,19 @@ class UNet(object):
     def generate_fake_samples(self, input_images, embedding_ids):
         input_handle, loss_handle, eval_handle, summary_handle = self.retrieve_handles()
         fake_images, real_images, \
-        g_loss, l1_loss = self.sess.run([eval_handle.generator,
+        l1_loss = self.sess.run([eval_handle.generator,
                                                  eval_handle.target,
-                                                 loss_handle.g_loss,
                                                  loss_handle.l1_loss],
                                                 feed_dict={
                                                     input_handle.real_data: input_images,
                                                     input_handle.embedding_ids: embedding_ids,
-                                                    input_handle.no_target_data: input_images,
-                                                    input_handle.no_target_ids: embedding_ids
                                                 })
-        return fake_images, real_images, g_loss, l1_loss
+        return fake_images, real_images, l1_loss
 
     def validate_model(self, val_iter, epoch, step):
         labels, images = next(val_iter)
-        fake_imgs, real_imgs, g_loss, l1_loss = self.generate_fake_samples(images, labels)
-        print("Sample: : g_loss: %.5f, l1_loss: %.5f" % ( g_loss, l1_loss))
+        fake_imgs, real_imgs, l1_loss = self.generate_fake_samples(images, labels)
+        print("Sample: : l1_loss: %.5f" % (l1_loss))
 
         merged_fake_images = merge(scale_back(fake_imgs), [self.batch_size, 1])
         merged_real_images = merge(scale_back(real_imgs), [self.batch_size, 1])
@@ -480,13 +365,10 @@ class UNet(object):
             raise Exception("no session registered")
 
         learning_rate = tf.placeholder(tf.float32, name="learning_rate")
-        # d_optimizer = tf.train.AdamOptimizer(learning_rate, beta1=0.5).minimize(loss_handle.d_loss, var_list=d_vars)
-        g_optimizer = tf.train.AdamOptimizer(learning_rate, beta1=0.5).minimize(loss_handle.g_loss, var_list=t_vars)
+        g_optimizer = tf.train.AdamOptimizer(learning_rate, beta1=0.5).minimize(loss_handle.l1_loss, var_list=t_vars)
         tf.global_variables_initializer().run()
         real_data = input_handle.real_data
         embedding_ids = input_handle.embedding_ids
-        no_target_data = input_handle.no_target_data
-        no_target_ids = input_handle.no_target_ids
 
         # filter by one type of labels
         data_provider = TrainDataProvider(self.data_dir, filter_by=fine_tune)
@@ -494,7 +376,6 @@ class UNet(object):
         val_batch_iter = data_provider.get_val_iter(self.batch_size)
 
         saver = tf.train.Saver(max_to_keep=3)
-        self.restore_model(saver, './exp/checkpoint/experiment_0_batch_16/')
         summary_writer = tf.summary.FileWriter(self.log_dir, self.sess.graph)
 
         if resume:
@@ -508,58 +389,22 @@ class UNet(object):
         for ei in range(epoch):
             train_batch_iter = data_provider.get_train_iter(self.batch_size)
 
-            # if (ei + 1) % schedule == 0:
-            #     update_lr = current_lr / 2.0
-            #     # minimum learning rate guarantee
-            #     update_lr = max(update_lr, 0.0002)
-            #     print("decay learning rate from %.5f to %.5f" % (current_lr, update_lr))
-            #     current_lr = update_lr
-
             for bid, batch in enumerate(train_batch_iter):
                 counter += 1
                 labels, batch_images = batch
                 shuffled_ids = labels[:]
                 if flip_labels:
                     np.random.shuffle(shuffled_ids)
-                # Optimize D
-                # _, batch_d_loss, d_summary = self.sess.run([d_optimizer, loss_handle.d_loss,
-                #                                             summary_handle.d_merged],
-                #                                            feed_dict={
-                #                                                real_data: batch_images,
-                #                                                embedding_ids: labels,
-                #                                                learning_rate: current_lr,
-                #                                                no_target_data: batch_images,
-                #                                                no_target_ids: shuffled_ids
-                #                                            })
-                # # Optimize G
-                _, batch_g_loss = self.sess.run([g_optimizer, loss_handle.g_loss],
-                                                feed_dict={
-                                                    real_data: batch_images,
-                                                    embedding_ids: labels,
-                                                    learning_rate: current_lr,
-                                                    no_target_data: batch_images,
-                                                    no_target_ids: shuffled_ids
-                                                })
-                # magic move to Optimize G again
-                # according to https://github.com/carpedm20/DCGAN-tensorflow
-                # collect all the losses along the way
-                _, batch_g_loss, \
-                l1_loss, tv_loss, g_summary = self.sess.run([g_optimizer,loss_handle.g_loss,
-                                                                         loss_handle.l1_loss,
-                                                                         loss_handle.tv_loss,
+                _, batch_g_loss, g_summary = self.sess.run([g_optimizer,loss_handle.l1_loss,
                                                                          summary_handle.g_merged],
                                                                         feed_dict={
                                                                             real_data: batch_images,
                                                                             embedding_ids: labels,
-                                                                            learning_rate: current_lr,
-                                                                            no_target_data: batch_images,
-                                                                            no_target_ids: shuffled_ids
-                                                                        })
+                                                                            learning_rate: current_lr
+                                                                            })
                 passed = time.time() - start_time
-                log_format = "Epoch: [%2d], [%4d/%4d] time: %4.4f, g_loss: %.5f, " + \
-                             "l1_loss: %.5f, tv_loss: %.5f"
-                print(log_format % (ei, bid, total_batches, passed, batch_g_loss, l1_loss, tv_loss))
-                # summary_writer.add_summary(d_summary, counter)
+                log_format = "Epoch: [%2d], [%4d/%4d] time: %4.4f, l1_loss: %.5f"
+                print(log_format % (ei, bid, total_batches, passed, batch_g_loss))
                 summary_writer.add_summary(g_summary, counter)
 
                 if counter % sample_steps == 0:
