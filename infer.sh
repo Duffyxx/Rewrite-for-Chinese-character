@@ -1,0 +1,9 @@
+python infer.py --model_dir=./exp/checkpoint/experiment_0_batch_16/ \
+                --batch_size=10 \
+                --source_obj=./exp/data/val.obj \
+                --embedding_ids=0,1,2 \
+                --save_dir=./exp/frame/ \
+                --output_gif=./exp/gif/out.gif \
+                --interpolate=1 \
+                --steps=10 \
+                --uroboros=1 \
