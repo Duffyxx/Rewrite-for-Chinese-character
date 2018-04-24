@@ -1,0 +1,1 @@
+# Rewrite-for-Chinese-character
