@@ -1,7 +1,7 @@
 # Rewrite-for-Chinese-character
 This is a project to achieve style transfer for Chinese character, it is based on vae structure.
 ## Introduction
-Structure of this model is different from encoder-decoder, the imput of the network is three random character pictures of target style, the embedding_ids control the label of charactor content.
+Structure of this model is different from encoder-decoder, the input of the network are three random character pictures of target style, the embedding_ids control the label of charactor content.
 ## How to Use
 ### Step Zero
 Prepare you own fonts to train the model, save your fonts at './font/'.
