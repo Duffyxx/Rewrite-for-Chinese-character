@@ -39,7 +39,7 @@ python3 train.py
 ## Infer
 example:
 ```sh
-python3 --model_dir='./exp/checkpoint/experiment_0_batch_16/' \
+python3 infer.py --model_dir='./exp/checkpoint/experiment_0_batch_16/' \
         --source_obj='./exp/data/val.obj' \
         --embedding_ids='0,1,2' \
         --save_dir='./exp/result/'
