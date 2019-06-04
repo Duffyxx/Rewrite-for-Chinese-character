@@ -19,7 +19,7 @@ parser.add_argument('--Lconst_penalty', dest='Lconst_penalty', type=int, default
 parser.add_argument('--Ltv_penalty', dest='Ltv_penalty', type=float, default=0.0, help='weight for tv loss')
 parser.add_argument('--Lcategory_penalty', dest='Lcategory_penalty', type=float, default=1.0,
                     help='weight for category loss')
-parser.add_argument('--embedding_num', dest='embedding_num', type=int, default=300,
+parser.add_argument('--embedding_num', dest='embedding_num', type=int, default=3000,
                     help="number for distinct embeddings")
 parser.add_argument('--embedding_dim', dest='embedding_dim', type=int, default=128, help="dimension for embedding")
 parser.add_argument('--epoch', dest='epoch', type=int, default=500, help='number of epoch')
